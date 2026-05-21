@@ -136,6 +136,39 @@ On first start the backend backfills 2 years of daily price history for all four
 | DELETE | `/api/templates/{id}` | Delete a custom template |
 | GET | `/api/exchange-rates` | Current USD exchange rates (via Frankfurter) |
 
+## Homepage widget
+
+Add a [gethomepage.dev](https://gethomepage.dev) widget that shows portfolio value, P&L, gold spot price, and holdings count.
+
+```yaml
+- Portfolio:
+    - Gold Portfolio:
+        icon: mdi-gold
+        href: http://192.168.178.118:3000/
+        description: Precious metals tracker
+        widget:
+          type: customapi
+          url: http://192.168.178.118:3000/api/homepage?currency=EUR
+          refreshInterval: 300000
+          mappings:
+            - field: value
+              label: Portfolio Value
+              format: text
+            - field: gain_loss
+              label: P&L
+              format: text
+            - field: gold_oz
+              label: Gold / oz
+              format: text
+            - field: holdings
+              label: Holdings
+              format: number
+```
+
+Change `?currency=EUR` to any supported currency (`USD`, `EUR`, `GBP`, `TRY`, `CHF`, `JPY`, `CAD`, `AED`, `AUD`, `CNY`, `SEK`). The backend converts values and formats them with the correct symbol (e.g. `€19,234.56`, `-€1,378.71`).
+
+Full setup instructions: [`homepage-widget/README.md`](./homepage-widget/README.md)
+
 ## Notes
 
 - Prices are in USD/troy oz internally; all display values are converted client-side using live exchange rates
