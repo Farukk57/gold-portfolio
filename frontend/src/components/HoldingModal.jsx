@@ -160,8 +160,12 @@ export default function HoldingModal({ holding, onClose, onSave, currency, custo
   };
 
   const handleDeleteReceipt = async (receiptId) => {
-    await deleteHoldingReceipt(receiptId);
-    setReceipts(prev => prev.filter(r => r.id !== receiptId));
+    try {
+      await deleteHoldingReceipt(receiptId);
+      setReceipts(prev => prev.filter(r => r.id !== receiptId));
+    } catch {
+      // deletion failed — keep the receipt in the list so the UI stays consistent
+    }
   };
 
   const handleSubmit = (e) => {
@@ -206,9 +210,6 @@ export default function HoldingModal({ holding, onClose, onSave, currency, custo
     { key: 'international', label: t('international') },
     { key: 'custom', label: `⭐ ${t('myTemplates')} (${customTemplates.length})` },
   ];
-
-  // Build list for viewer: existing receipts + pending file previews
-  const viewerReceipts = receipts;
 
   return (
     <>

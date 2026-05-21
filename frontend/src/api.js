@@ -1,35 +1,36 @@
 const BASE = '/api';
 
-export const getPrices = () => fetch(`${BASE}/prices`).then(r => r.json());
-export const getPriceHistory = (metal, limit = 500) => fetch(`${BASE}/prices/history/${metal}?limit=${limit}`).then(r => r.json());
-export const refreshPrices = () => fetch(`${BASE}/prices/refresh`, { method: 'POST' }).then(r => r.json());
+async function apiFetch(url, options = {}) {
+  const r = await fetch(url, options);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
 
-export const getHoldings = () => fetch(`${BASE}/holdings`).then(r => r.json());
-export const createHolding = (data) => fetch(`${BASE}/holdings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json());
-export const updateHolding = (id, data) => fetch(`${BASE}/holdings/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json());
-export const deleteHolding = (id) => fetch(`${BASE}/holdings/${id}`, { method: 'DELETE' }).then(r => r.json());
+export const getPrices = () => apiFetch(`${BASE}/prices`);
+export const getPriceHistory = (metal, limit = 500) => apiFetch(`${BASE}/prices/history/${metal}?limit=${limit}`);
+export const refreshPrices = () => apiFetch(`${BASE}/prices/refresh`, { method: 'POST' });
 
-export const getSummary = () => fetch(`${BASE}/portfolio/summary`).then(r => r.json());
+export const getHoldings = () => apiFetch(`${BASE}/holdings`);
+export const createHolding = (data) => apiFetch(`${BASE}/holdings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+export const updateHolding = (id, data) => apiFetch(`${BASE}/holdings/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+export const deleteHolding = (id) => apiFetch(`${BASE}/holdings/${id}`, { method: 'DELETE' });
 
-export const getPortfolioHistory = () => fetch(`${BASE}/portfolio/history`).then(r => r.json());
+export const getSummary = () => apiFetch(`${BASE}/portfolio/summary`);
+export const getPortfolioHistory = () => apiFetch(`${BASE}/portfolio/history`);
 
-export const getTemplates = () => fetch(`${BASE}/templates`).then(r => r.json());
-export const createTemplate = (data) => fetch(`${BASE}/templates`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json());
-export const deleteTemplate = (id) => fetch(`${BASE}/templates/${id}`, { method: 'DELETE' }).then(r => r.json());
+export const getTemplates = () => apiFetch(`${BASE}/templates`);
+export const createTemplate = (data) => apiFetch(`${BASE}/templates`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+export const deleteTemplate = (id) => apiFetch(`${BASE}/templates/${id}`, { method: 'DELETE' });
 
-export const getReceiptsForHolding = (holdingId) =>
-  fetch(`/api/holdings/${holdingId}/receipts`).then(r => r.json());
+export const getReceiptsForHolding = (holdingId) => apiFetch(`/api/holdings/${holdingId}/receipts`);
 
 export const uploadHoldingReceipt = (holdingId, file) => {
   const fd = new FormData();
   fd.append('file', file);
-  return fetch(`/api/holdings/${holdingId}/receipts`, { method: 'POST', body: fd }).then(r => r.json());
+  return apiFetch(`/api/holdings/${holdingId}/receipts`, { method: 'POST', body: fd });
 };
 
-export const deleteHoldingReceipt = (receiptId) =>
-  fetch(`/api/receipts/${receiptId}`, { method: 'DELETE' }).then(r => r.json());
+export const deleteHoldingReceipt = (receiptId) => apiFetch(`/api/receipts/${receiptId}`, { method: 'DELETE' });
 
 export const getExchangeRates = () =>
-  fetch(`${BASE}/exchange-rates`)
-    .then(r => r.json())
-    .catch(() => ({ USD: 1 }));
+  apiFetch(`${BASE}/exchange-rates`).catch(() => ({ USD: 1 }));

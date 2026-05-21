@@ -1,15 +1,19 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, field_validator
+from typing import Literal, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
 import aiohttp
 import os
+import re
 import uuid
+
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.pdf'}
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
 from database import get_db, init_db, Holding, Receipt, PriceHistory, Template, SessionLocal
 from prices import fetch_prices, store_prices, get_latest_prices, get_price_history, calculate_value, fetch_historical_prices, store_historical_prices
@@ -21,22 +25,36 @@ scheduler = AsyncIOScheduler()
 
 class HoldingCreate(BaseModel):
     name: str
-    metal: str
+    metal: Literal['gold', 'silver', 'platinum', 'palladium']
     carat: Optional[str] = None
     weight_grams: float
     purchase_price: Optional[float] = None
     purchase_date: Optional[str] = None
     notes: Optional[str] = None
 
+    @field_validator('purchase_date')
+    @classmethod
+    def validate_date(cls, v):
+        if v and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', v):
+            raise ValueError('purchase_date must be YYYY-MM-DD')
+        return v
+
 
 class HoldingUpdate(BaseModel):
     name: Optional[str] = None
-    metal: Optional[str] = None
+    metal: Optional[Literal['gold', 'silver', 'platinum', 'palladium']] = None
     carat: Optional[str] = None
     weight_grams: Optional[float] = None
     purchase_price: Optional[float] = None
     purchase_date: Optional[str] = None
     notes: Optional[str] = None
+
+    @field_validator('purchase_date')
+    @classmethod
+    def validate_date(cls, v):
+        if v and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', v):
+            raise ValueError('purchase_date must be YYYY-MM-DD')
+        return v
 
 
 async def refresh_prices():
@@ -201,10 +219,14 @@ async def upload_receipt(holding_id: int, file: UploadFile = File(...), db: Sess
     holding = db.query(Holding).filter(Holding.id == holding_id).first()
     if not holding:
         raise HTTPException(status_code=404, detail="Not found")
-    ext = os.path.splitext(file.filename)[1] if file.filename else ""
+    ext = os.path.splitext(file.filename or '')[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="File type not allowed. Accepted: images and PDF.")
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large. Maximum size is 10 MB.")
     stored_name = f"{uuid.uuid4().hex}{ext}"
     path = os.path.join(RECEIPTS_DIR, stored_name)
-    contents = await file.read()
     await asyncio.to_thread(_write_file, path, contents)
     receipt = Receipt(holding_id=holding_id, filename=stored_name, original_name=file.filename)
     db.add(receipt)
@@ -278,7 +300,9 @@ def portfolio_history(db: Session = Depends(get_db)):
     if not holdings:
         return []
 
-    all_prices = db.query(PriceHistory).order_by(PriceHistory.timestamp).all()
+    from datetime import datetime, timedelta
+    cutoff = datetime.now() - timedelta(days=730)
+    all_prices = db.query(PriceHistory).filter(PriceHistory.timestamp >= cutoff).order_by(PriceHistory.timestamp).all()
     if not all_prices:
         return []
 

@@ -1,13 +1,22 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, text, event
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from datetime import datetime, timezone
 
 DATABASE_URL = "sqlite:///./data/portfolio.db"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+@event.listens_for(engine, "connect")
+def set_sqlite_pragmas(dbapi_connection, _):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 
 class Holding(Base):

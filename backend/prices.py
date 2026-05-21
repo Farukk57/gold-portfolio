@@ -1,6 +1,7 @@
 import aiohttp
 import asyncio
 from datetime import datetime, timezone
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import PriceHistory, SessionLocal
 
@@ -97,17 +98,19 @@ def store_prices(prices: dict):
 
 
 def get_latest_prices(db: Session) -> dict:
-    result = {}
-    for metal in ["gold", "silver", "platinum", "palladium"]:
-        row = (
-            db.query(PriceHistory)
-            .filter(PriceHistory.metal == metal)
-            .order_by(PriceHistory.timestamp.desc())
-            .first()
-        )
-        if row:
-            result[metal] = {"price_usd_per_oz": row.price_usd_per_oz, "timestamp": row.timestamp}
-    return result
+    metals = ["gold", "silver", "platinum", "palladium"]
+    subq = (
+        db.query(PriceHistory.metal, func.max(PriceHistory.timestamp).label("max_ts"))
+        .filter(PriceHistory.metal.in_(metals))
+        .group_by(PriceHistory.metal)
+        .subquery()
+    )
+    rows = (
+        db.query(PriceHistory)
+        .join(subq, (PriceHistory.metal == subq.c.metal) & (PriceHistory.timestamp == subq.c.max_ts))
+        .all()
+    )
+    return {r.metal: {"price_usd_per_oz": r.price_usd_per_oz, "timestamp": r.timestamp} for r in rows}
 
 
 def get_price_history(db: Session, metal: str, limit: int = 168) -> list:

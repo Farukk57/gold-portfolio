@@ -86,7 +86,7 @@ export default function PortfolioChart({ currency, t = k => k }) {
             <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--gold)' }}>{f(last.value)}</span>
             {rangeChange && (
               <span style={{ fontSize: '13px', color: rangeUp ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
-                {rangeUp ? '▲' : '▼'} {Math.abs(rangeChange)}%
+                {rangeUp ? '▲' : '▼'} {Math.abs(parseFloat(rangeChange))}%
                 <span style={{ color: 'var(--text-dim)', fontWeight: 400, marginLeft: '4px' }}>({range})</span>
               </span>
             )}

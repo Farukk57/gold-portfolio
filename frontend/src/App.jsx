@@ -147,21 +147,34 @@ export default function App() {
 
   const confirmDeleteAction = async () => {
     if (!confirmDelete) return;
-    await deleteHolding(confirmDelete.id);
-    setConfirmDelete(null);
-    showToast(t('deletedToast'));
-    load();
+    try {
+      await deleteHolding(confirmDelete.id);
+      setConfirmDelete(null);
+      showToast(t('deletedToast'));
+      load();
+    } catch {
+      setConfirmDelete(null);
+      showToast(t('errSave'), 'error');
+    }
   };
 
   const handleSaveTemplate = async (data) => {
-    const tmpl = await createTemplate(data);
-    setCustomTemplates(prev => [tmpl, ...prev]);
-    showToast(t('templateSaved'));
+    try {
+      const tmpl = await createTemplate(data);
+      setCustomTemplates(prev => [tmpl, ...prev]);
+      showToast(t('templateSaved'));
+    } catch {
+      showToast(t('errSave'), 'error');
+    }
   };
 
   const handleDeleteTemplate = async (id) => {
-    await deleteTemplate(id);
-    setCustomTemplates(prev => prev.filter(x => x.id !== id));
+    try {
+      await deleteTemplate(id);
+      setCustomTemplates(prev => prev.filter(x => x.id !== id));
+    } catch {
+      showToast(t('errSave'), 'error');
+    }
   };
 
   const gainLoss = summary?.gain_loss_usd;
