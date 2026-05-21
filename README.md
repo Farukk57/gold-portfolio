@@ -5,8 +5,8 @@ A self-hosted web app for tracking physical precious metals — gold, silver, pl
 ![Dark mode](https://img.shields.io/badge/theme-dark%20%2F%20light-222)
 ![Languages](https://img.shields.io/badge/languages-EN%20%2F%20TR%20%2F%20DE-blue)
 ![Currencies](https://img.shields.io/badge/currencies-11-green)
-[![Backend image](https://ghcr.io/farukk57/gold-portfolio-backend)](https://github.com/Farukk57/gold-portfolio/pkgs/container/gold-portfolio-backend)
-[![Frontend image](https://ghcr.io/farukk57/gold-portfolio-frontend)](https://github.com/Farukk57/gold-portfolio/pkgs/container/gold-portfolio-frontend)
+[![Backend image](https://img.shields.io/badge/ghcr.io-backend-blue?logo=docker&logoColor=white)](https://github.com/Farukk57/gold-portfolio/pkgs/container/gold-portfolio-backend)
+[![Frontend image](https://img.shields.io/badge/ghcr.io-frontend-blue?logo=docker&logoColor=white)](https://github.com/Farukk57/gold-portfolio/pkgs/container/gold-portfolio-frontend)
 
 ## Features
 
