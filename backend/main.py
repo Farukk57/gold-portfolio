@@ -335,6 +335,12 @@ def portfolio_history(db: Session = Depends(get_db)):
     return result
 
 
+_CURRENCY_SYMBOLS = {
+    "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "TRY": "₺",
+    "CHF": "Fr.", "CAD": "C$", "AED": "AED ", "AUD": "A$", "CNY": "¥", "SEK": "kr ",
+}
+
+
 async def _get_rate(currency: str) -> float:
     if currency == "USD":
         return 1.0
@@ -348,6 +354,14 @@ async def _get_rate(currency: str) -> float:
     except Exception:
         pass
     return 1.0
+
+
+def _fmt_currency(value: float, symbol: str, decimals: int = 2) -> str:
+    abs_val = abs(value)
+    formatted = f"{abs_val:,.{decimals}f}"
+    if value < 0:
+        return f"-{symbol}{formatted}"
+    return f"{symbol}{formatted}"
 
 
 @app.get("/api/homepage")
@@ -368,13 +382,16 @@ async def homepage_widget(currency: str = "USD", db: Session = Depends(get_db)):
     gain_loss_pct = round(gain_loss / total_purchase * 100, 2) if total_purchase else 0.0
     gold_price = prices.get("gold", {}).get("price_usd_per_oz", 0.0)
 
-    rate = await _get_rate(currency.upper())
+    curr = currency.upper()
+    rate = await _get_rate(curr)
+    symbol = _CURRENCY_SYMBOLS.get(curr, curr + " ")
+    decimals = 0 if curr == "JPY" else 2
 
     return {
-        "value": round(total_value * rate, 2),
-        "gain_loss": round(gain_loss * rate, 2),
-        "gain_loss_pct": gain_loss_pct,
-        "gold_oz": round(gold_price * rate, 2),
+        "value": _fmt_currency(total_value * rate, symbol, decimals),
+        "gain_loss": ("+" if gain_loss >= 0 else "") + _fmt_currency(gain_loss * rate, symbol, decimals),
+        "gain_loss_pct": f"{gain_loss_pct:+.2f}%",
+        "gold_oz": _fmt_currency(gold_price * rate, symbol, decimals),
         "holdings": len(holdings),
     }
 

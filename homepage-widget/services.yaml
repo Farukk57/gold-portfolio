@@ -22,19 +22,13 @@
           mappings:
             - field: value
               label: Portfolio Value
-              format: currency
-              locale: de
-              currency: EUR
+              format: text
             - field: gain_loss
               label: P&L
-              format: currency
-              locale: de
-              currency: EUR
+              format: text
             - field: gold_oz
               label: Gold / oz
-              format: currency
-              locale: de
-              currency: EUR
+              format: text
             - field: holdings
               label: Holdings
               format: number
