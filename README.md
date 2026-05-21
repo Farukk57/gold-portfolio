@@ -2,6 +2,7 @@
 
 A self-hosted web app for tracking physical precious metals — gold, silver, platinum, and palladium. Runs as a Docker container on a NAS or any Linux host.
 
+[![Latest release](https://img.shields.io/github/v/release/Farukk57/gold-portfolio?logo=github)](https://github.com/Farukk57/gold-portfolio/releases/latest)
 ![Dark mode](https://img.shields.io/badge/theme-dark%20%2F%20light-222)
 ![Languages](https://img.shields.io/badge/languages-EN%20%2F%20TR%20%2F%20DE-blue)
 ![Currencies](https://img.shields.io/badge/currencies-11-green)
@@ -135,6 +136,7 @@ On first start the backend backfills 2 years of daily price history for all four
 | POST | `/api/templates` | Save a custom template |
 | DELETE | `/api/templates/{id}` | Delete a custom template |
 | GET | `/api/exchange-rates` | Current USD exchange rates (via Frankfurter) |
+| GET | `/api/homepage?currency=EUR` | Homepage widget data — value, P&L, gold/oz, holdings count (pre-formatted, currency-converted) |
 
 ## Homepage widget
 
@@ -171,8 +173,10 @@ Full setup instructions: [`homepage-widget/README.md`](./homepage-widget/README.
 
 ## Notes
 
+- Prices are fetched from Yahoo Finance **every hour** automatically; a manual refresh button is also available
 - Prices are in USD/troy oz internally; all display values are converted client-side using live exchange rates
 - Troy oz conversion: 1 oz = 31.1035 g
-- Carat purity: 24k = 1.0, 22k = 0.9167, 18k = 0.75, 14k = 0.5833, 9k = 0.375, 999 = 0.999, 925 = 0.925, 950 = 0.95, 500 = 0.5
+- Carat purity: 24k = 1.0, 22k = 0.9167, 18k = 0.75, 14k = 0.5833, 9k = 0.375
 - SQLite runs in WAL mode for better concurrent read/write performance
 - Receipt files are stored under `./data/receipts/` on the host alongside the database
+- nginx serves with security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`) and hides the server version
