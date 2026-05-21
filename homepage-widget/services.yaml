@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Gold Portfolio — Homepage (gethomepage.dev) widget snippet
+#
+# Paste this block into your Homepage services.yaml under whichever group
+# you want the widget to appear in.
+#
+# Replace the IP/port in `href` and `url` with your actual host if different.
+# ─────────────────────────────────────────────────────────────────────────────
+
+- Gold Portfolio:
+    icon: mdi-gold
+    href: http://192.168.178.118:3000/
+    description: Precious metals tracker
+    widget:
+      type: customapi
+      url: http://192.168.178.118:3000/api/homepage
+      refreshInterval: 300000   # refresh every 5 minutes (ms)
+      mappings:
+        - field: value
+          label: Portfolio Value
+          format: currency
+          locale: en
+          currency: USD
+        - field: gain_loss
+          label: P&L
+          format: currency
+          locale: en
+          currency: USD
+        - field: gold_oz
+          label: Gold / oz
+          format: currency
+          locale: en
+          currency: USD
+        - field: holdings
+          label: Holdings
+          format: number

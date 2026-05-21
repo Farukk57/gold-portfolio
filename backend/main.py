@@ -335,6 +335,33 @@ def portfolio_history(db: Session = Depends(get_db)):
     return result
 
 
+@app.get("/api/homepage")
+def homepage_widget(db: Session = Depends(get_db)):
+    holdings = db.query(Holding).all()
+    prices = get_latest_prices(db)
+
+    total_value = 0.0
+    total_purchase = 0.0
+    for h in holdings:
+        price_data = prices.get(h.metal)
+        if price_data:
+            total_value += calculate_value(h.weight_grams, h.metal, h.carat, price_data["price_usd_per_oz"])
+        if h.purchase_price:
+            total_purchase += h.purchase_price
+
+    gain_loss = total_value - total_purchase if total_purchase else 0.0
+    gain_loss_pct = round(gain_loss / total_purchase * 100, 2) if total_purchase else 0.0
+    gold_price = prices.get("gold", {}).get("price_usd_per_oz", 0.0)
+
+    return {
+        "value": round(total_value, 2),
+        "gain_loss": round(gain_loss, 2),
+        "gain_loss_pct": gain_loss_pct,
+        "gold_oz": round(gold_price, 2),
+        "holdings": len(holdings),
+    }
+
+
 @app.get("/api/portfolio/summary")
 def portfolio_summary(db: Session = Depends(get_db)):
     holdings = db.query(Holding).all()
