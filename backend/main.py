@@ -335,15 +335,23 @@ def portfolio_history(db: Session = Depends(get_db)):
     return result
 
 
-def _usd(v: float, sign: bool = False) -> str:
-    if sign:
-        prefix = "+$" if v >= 0 else "-$"
-        return f"{prefix}{abs(v):,.2f}"
-    return f"${v:,.2f}"
+async def _get_rate(currency: str) -> float:
+    if currency == "USD":
+        return 1.0
+    url = f"https://api.frankfurter.dev/v1/latest?base=USD&symbols={currency}"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return float(data.get("rates", {}).get(currency, 1.0))
+    except Exception:
+        pass
+    return 1.0
 
 
 @app.get("/api/homepage")
-def homepage_widget(db: Session = Depends(get_db)):
+async def homepage_widget(currency: str = "USD", db: Session = Depends(get_db)):
     holdings = db.query(Holding).all()
     prices = get_latest_prices(db)
 
@@ -360,11 +368,13 @@ def homepage_widget(db: Session = Depends(get_db)):
     gain_loss_pct = round(gain_loss / total_purchase * 100, 2) if total_purchase else 0.0
     gold_price = prices.get("gold", {}).get("price_usd_per_oz", 0.0)
 
+    rate = await _get_rate(currency.upper())
+
     return {
-        "value": _usd(total_value),
-        "gain_loss": _usd(gain_loss, sign=True),
-        "gain_loss_pct": f"{gain_loss_pct:+.2f}%",
-        "gold_oz": _usd(gold_price),
+        "value": round(total_value * rate, 2),
+        "gain_loss": round(gain_loss * rate, 2),
+        "gain_loss_pct": gain_loss_pct,
+        "gold_oz": round(gold_price * rate, 2),
         "holdings": len(holdings),
     }
 

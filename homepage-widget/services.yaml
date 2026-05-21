@@ -5,6 +5,9 @@
 # you want the widget to appear in.
 #
 # Replace the IP/port in `href` and `url` with your actual host if different.
+# Change the `currency` param in the URL to match your preferred currency
+# (USD, EUR, GBP, TRY, CHF, …). The backend fetches the live exchange rate
+# and returns values already converted, so Homepage just formats the number.
 # ─────────────────────────────────────────────────────────────────────────────
 
 - Portfolio:
@@ -14,18 +17,24 @@
         description: Precious metals tracker
         widget:
           type: customapi
-          url: http://192.168.178.118:3000/api/homepage
+          url: http://192.168.178.118:3000/api/homepage?currency=EUR
           refreshInterval: 300000   # refresh every 5 minutes (ms)
           mappings:
             - field: value
               label: Portfolio Value
-              format: text
+              format: currency
+              locale: de
+              currency: EUR
             - field: gain_loss
               label: P&L
-              format: text
+              format: currency
+              locale: de
+              currency: EUR
             - field: gold_oz
               label: Gold / oz
-              format: text
+              format: currency
+              locale: de
+              currency: EUR
             - field: holdings
               label: Holdings
               format: number

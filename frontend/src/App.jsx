@@ -210,7 +210,7 @@ export default function App() {
           <select className="currency-select" value={currCode} onChange={e => setCurrCode(e.target.value)}>
             {Object.keys(CURRENCY_META).map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <button className="icon-btn" onClick={() => setTheme(th => th === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t('lightMode') : t('darkMode')}>
+          <button className="icon-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t('lightMode') : t('darkMode')}>
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <button onClick={handleRefresh} disabled={refreshing}
