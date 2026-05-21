@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 const T = {
   en: {
@@ -136,9 +136,9 @@ export function useLang() {
 
 export function useT() {
   const lang = useLang();
-  return (key, vars) => {
+  return useMemo(() => (key, vars) => {
     let s = T[lang]?.[key] ?? T.en[key] ?? key;
     if (vars) for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, v);
     return s;
-  };
+  }, [lang]);
 }
