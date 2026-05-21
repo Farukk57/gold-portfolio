@@ -1,0 +1,22 @@
+services:
+  backend:
+    image: ghcr.io/farukk57/gold-portfolio-backend:main
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    networks:
+      - portfolio
+
+  frontend:
+    image: ghcr.io/farukk57/gold-portfolio-frontend:main
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - portfolio
+
+networks:
+  portfolio:
+    driver: bridge
