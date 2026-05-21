@@ -335,6 +335,13 @@ def portfolio_history(db: Session = Depends(get_db)):
     return result
 
 
+def _usd(v: float, sign: bool = False) -> str:
+    if sign:
+        prefix = "+$" if v >= 0 else "-$"
+        return f"{prefix}{abs(v):,.2f}"
+    return f"${v:,.2f}"
+
+
 @app.get("/api/homepage")
 def homepage_widget(db: Session = Depends(get_db)):
     holdings = db.query(Holding).all()
@@ -354,10 +361,10 @@ def homepage_widget(db: Session = Depends(get_db)):
     gold_price = prices.get("gold", {}).get("price_usd_per_oz", 0.0)
 
     return {
-        "value": round(total_value, 2),
-        "gain_loss": round(gain_loss, 2),
-        "gain_loss_pct": gain_loss_pct,
-        "gold_oz": round(gold_price, 2),
+        "value": _usd(total_value),
+        "gain_loss": _usd(gain_loss, sign=True),
+        "gain_loss_pct": f"{gain_loss_pct:+.2f}%",
+        "gold_oz": _usd(gold_price),
         "holdings": len(holdings),
     }
 
