@@ -65,7 +65,7 @@ export default function PortfolioChart({ currency, t = k => k }) {
 
   const filtered = useMemo(() => filterData(data, range), [data, range]);
 
-  if (!data.length) return <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '2rem' }}>Loading…</div>;
+  if (!data.length) return <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '2rem' }}>{t('loadingChart')}</div>;
   if (data.length < 2) return <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '2rem' }}>{t('buildingHistory')}</div>;
   if (!filtered.length) return <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '2rem' }}>{t('noData')}</div>;
 
@@ -75,7 +75,7 @@ export default function PortfolioChart({ currency, t = k => k }) {
   const plPct = last.cost_basis > 0 ? ((pl / last.cost_basis) * 100).toFixed(2) : null;
   const isPos = pl >= 0;
   const rangeChange = filtered.length > 1 ? ((filtered[filtered.length-1].value - filteredFirst.value) / (filteredFirst.value || 1) * 100).toFixed(2) : null;
-  const rangeUp = rangeChange >= 0;
+  const rangeUp = parseFloat(rangeChange) >= 0;
   const f = (n) => `${symbol}${(n * rate).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 
   return (

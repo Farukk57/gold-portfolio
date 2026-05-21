@@ -1,24 +1,20 @@
-from fastapi import FastAPI, Depends, HTTPException
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
 import aiohttp
+import os
+import uuid
 
-from database import get_db, init_db, Holding, PriceHistory, Template, SessionLocal
+from database import get_db, init_db, Holding, Receipt, PriceHistory, Template, SessionLocal
 from prices import fetch_prices, store_prices, get_latest_prices, get_price_history, calculate_value, fetch_historical_prices, store_historical_prices
 
-app = FastAPI(title="Gold Portfolio API")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+RECEIPTS_DIR = "/app/data/receipts"
 
 scheduler = AsyncIOScheduler()
 
@@ -49,8 +45,9 @@ async def refresh_prices():
         store_prices(prices)
 
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    os.makedirs(RECEIPTS_DIR, exist_ok=True)
     init_db()
     db = SessionLocal()
     try:
@@ -63,11 +60,18 @@ async def startup():
     await refresh_prices()
     scheduler.add_job(refresh_prices, "interval", hours=1)
     scheduler.start()
-
-
-@app.on_event("shutdown")
-async def shutdown():
+    yield
     scheduler.shutdown()
+
+
+app = FastAPI(title="Gold Portfolio API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/api/exchange-rates")
@@ -109,12 +113,19 @@ def list_holdings(db: Session = Depends(get_db)):
     holdings = db.query(Holding).all()
     prices = get_latest_prices(db)
 
+    # Batch-load all receipts
+    all_receipts = db.query(Receipt).all()
+    receipts_by_holding: dict = {}
+    for r in all_receipts:
+        receipts_by_holding.setdefault(r.holding_id, []).append(r)
+
     result = []
     for h in holdings:
         price_data = prices.get(h.metal)
         current_value = None
         if price_data:
             current_value = calculate_value(h.weight_grams, h.metal, h.carat, price_data["price_usd_per_oz"])
+        holding_receipts = receipts_by_holding.get(h.id, [])
         result.append({
             "id": h.id,
             "name": h.name,
@@ -127,6 +138,7 @@ def list_holdings(db: Session = Depends(get_db)):
             "created_at": h.created_at,
             "current_value_usd": current_value,
             "price_per_oz": price_data["price_usd_per_oz"] if price_data else None,
+            "receipts": [{"id": r.id, "filename": r.filename, "original_name": r.original_name} for r in holding_receipts],
         })
     return result
 
@@ -152,6 +164,86 @@ def update_holding(holding_id: int, body: HoldingUpdate, db: Session = Depends(g
     return holding
 
 
+@app.delete("/api/holdings/{holding_id}")
+def delete_holding(holding_id: int, db: Session = Depends(get_db)):
+    holding = db.query(Holding).filter(Holding.id == holding_id).first()
+    if not holding:
+        raise HTTPException(status_code=404, detail="Not found")
+    # Delete all receipt files
+    for r in db.query(Receipt).filter(Receipt.holding_id == holding_id).all():
+        path = os.path.join(RECEIPTS_DIR, r.filename)
+        if os.path.exists(path):
+            os.remove(path)
+        db.delete(r)
+    # Delete legacy single receipt if any
+    if holding.receipt_filename:
+        path = os.path.join(RECEIPTS_DIR, holding.receipt_filename)
+        if os.path.exists(path):
+            os.remove(path)
+    db.delete(holding)
+    db.commit()
+    return {"status": "deleted"}
+
+
+# ── Receipt endpoints ────────────────────────────────────
+
+@app.get("/api/holdings/{holding_id}/receipts")
+def list_receipts(holding_id: int, db: Session = Depends(get_db)):
+    holding = db.query(Holding).filter(Holding.id == holding_id).first()
+    if not holding:
+        raise HTTPException(status_code=404, detail="Not found")
+    receipts = db.query(Receipt).filter(Receipt.holding_id == holding_id).all()
+    return [{"id": r.id, "filename": r.filename, "original_name": r.original_name} for r in receipts]
+
+
+@app.post("/api/holdings/{holding_id}/receipts")
+async def upload_receipt(holding_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    holding = db.query(Holding).filter(Holding.id == holding_id).first()
+    if not holding:
+        raise HTTPException(status_code=404, detail="Not found")
+    ext = os.path.splitext(file.filename)[1] if file.filename else ""
+    stored_name = f"{uuid.uuid4().hex}{ext}"
+    path = os.path.join(RECEIPTS_DIR, stored_name)
+    contents = await file.read()
+    await asyncio.to_thread(_write_file, path, contents)
+    receipt = Receipt(holding_id=holding_id, filename=stored_name, original_name=file.filename)
+    db.add(receipt)
+    db.commit()
+    db.refresh(receipt)
+    return {"id": receipt.id, "filename": receipt.filename, "original_name": receipt.original_name}
+
+
+def _write_file(path: str, contents: bytes) -> None:
+    with open(path, "wb") as f:
+        f.write(contents)
+
+
+@app.get("/api/receipts/{receipt_id}/file")
+def get_receipt_file(receipt_id: int, db: Session = Depends(get_db)):
+    receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Not found")
+    path = os.path.join(RECEIPTS_DIR, receipt.filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path, filename=receipt.original_name)
+
+
+@app.delete("/api/receipts/{receipt_id}")
+def delete_receipt(receipt_id: int, db: Session = Depends(get_db)):
+    receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Not found")
+    path = os.path.join(RECEIPTS_DIR, receipt.filename)
+    if os.path.exists(path):
+        os.remove(path)
+    db.delete(receipt)
+    db.commit()
+    return {"status": "deleted"}
+
+
+# ── Templates ────────────────────────────────────────────
+
 @app.get("/api/templates")
 def list_templates(db: Session = Depends(get_db)):
     return db.query(Template).order_by(Template.created_at.desc()).all()
@@ -176,15 +268,7 @@ def delete_template(tid: int, db: Session = Depends(get_db)):
     return {"status": "deleted"}
 
 
-@app.delete("/api/holdings/{holding_id}")
-def delete_holding(holding_id: int, db: Session = Depends(get_db)):
-    holding = db.query(Holding).filter(Holding.id == holding_id).first()
-    if not holding:
-        raise HTTPException(status_code=404, detail="Not found")
-    db.delete(holding)
-    db.commit()
-    return {"status": "deleted"}
-
+# ── Portfolio ─────────────────────────────────────────────
 
 @app.get("/api/portfolio/history")
 def portfolio_history(db: Session = Depends(get_db)):
@@ -198,7 +282,6 @@ def portfolio_history(db: Session = Depends(get_db)):
     if not all_prices:
         return []
 
-    # Group by date — keep last price per metal per day
     daily_prices: dict = defaultdict(dict)
     for row in all_prices:
         date_str = row.timestamp.strftime("%Y-%m-%d")

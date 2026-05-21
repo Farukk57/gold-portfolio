@@ -21,7 +21,7 @@ function xFmt(v, range) {
   return d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
 }
 
-const CustomTooltip = ({ active, payload, label, symbol, rate, decimals }) => {
+const CustomTooltip = ({ active, payload, label, symbol, rate, decimals, perOz }) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 14px', boxShadow: 'var(--shadow)' }}>
@@ -30,7 +30,7 @@ const CustomTooltip = ({ active, payload, label, symbol, rate, decimals }) => {
       </div>
       <div style={{ color: 'var(--text)', fontWeight: 600, fontSize: '15px' }}>
         {symbol}{(payload[0].value * rate).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}
-        <span style={{ color: 'var(--text-dim)', fontWeight: 400, fontSize: '12px' }}>/oz</span>
+        <span style={{ color: 'var(--text-dim)', fontWeight: 400, fontSize: '12px' }}>{perOz}</span>
       </div>
     </div>
   );
@@ -62,7 +62,7 @@ export default function PriceChart({ metal, currency, t = k => k }) {
 
   const filtered = useMemo(() => filterData(data, range), [data, range]);
 
-  if (!data.length) return <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '2rem' }}>Loading…</div>;
+  if (!data.length) return <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '2rem' }}>{t('loadingChart')}</div>;
   if (!filtered.length) return <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '2rem' }}>{t('noData')}</div>;
 
   const first = filtered[0].price;
@@ -100,7 +100,7 @@ export default function PriceChart({ metal, currency, t = k => k }) {
             tick={{ fill: 'var(--text-dim)', fontSize: 11 }}
             tickFormatter={v => `${symbol}${(v * rate).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
             width={72} axisLine={false} tickLine={false} />
-          <Tooltip content={<CustomTooltip symbol={symbol} rate={rate} decimals={decimals} />} />
+          <Tooltip content={<CustomTooltip symbol={symbol} rate={rate} decimals={decimals} perOz={t('perOz')} />} />
           <Area type="monotone" dataKey="price" stroke={color} strokeWidth={2} fill={`url(#grad-${metal})`} dot={false} activeDot={{ r: 4, fill: color }} />
         </AreaChart>
       </ResponsiveContainer>

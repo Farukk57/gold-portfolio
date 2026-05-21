@@ -17,6 +17,18 @@ export const getTemplates = () => fetch(`${BASE}/templates`).then(r => r.json())
 export const createTemplate = (data) => fetch(`${BASE}/templates`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json());
 export const deleteTemplate = (id) => fetch(`${BASE}/templates/${id}`, { method: 'DELETE' }).then(r => r.json());
 
+export const getReceiptsForHolding = (holdingId) =>
+  fetch(`/api/holdings/${holdingId}/receipts`).then(r => r.json());
+
+export const uploadHoldingReceipt = (holdingId, file) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return fetch(`/api/holdings/${holdingId}/receipts`, { method: 'POST', body: fd }).then(r => r.json());
+};
+
+export const deleteHoldingReceipt = (receiptId) =>
+  fetch(`/api/receipts/${receiptId}`, { method: 'DELETE' }).then(r => r.json());
+
 export const getExchangeRates = () =>
   fetch(`${BASE}/exchange-rates`)
     .then(r => r.json())

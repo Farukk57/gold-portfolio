@@ -1,6 +1,6 @@
 import aiohttp
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from database import PriceHistory, SessionLocal
 
@@ -38,25 +38,31 @@ async def _fetch_symbol(session: aiohttp.ClientSession, symbol: str) -> float | 
     return None
 
 
+async def _fetch_historical_symbol(session: aiohttp.ClientSession, symbol: str, metal: str, range_str: str) -> tuple[str, list]:
+    encoded = symbol.replace("=", "%3D")
+    url = f"https://query2.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range={range_str}"
+    try:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=20), headers=HEADERS) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                chart = data["chart"]["result"][0]
+                timestamps = chart["timestamp"]
+                closes = chart["indicators"]["quote"][0]["close"]
+                points = [(datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None), float(price)) for ts, price in zip(timestamps, closes) if price is not None]
+                return metal, points
+    except Exception:
+        pass
+    return metal, []
+
+
 async def fetch_historical_prices(years: int = 2) -> dict[str, list]:
     range_str = f"{years}y"
-    result = {}
     async with aiohttp.ClientSession() as session:
-        for symbol, metal in YAHOO_SYMBOLS.items():
-            encoded = symbol.replace("=", "%3D")
-            url = f"https://query2.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range={range_str}"
-            try:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=20), headers=HEADERS) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        chart = data["chart"]["result"][0]
-                        timestamps = chart["timestamp"]
-                        closes = chart["indicators"]["quote"][0]["close"]
-                        points = [(datetime.utcfromtimestamp(ts), float(price)) for ts, price in zip(timestamps, closes) if price is not None]
-                        result[metal] = points
-            except Exception:
-                pass
-    return result
+        results = await asyncio.gather(*[
+            _fetch_historical_symbol(session, symbol, metal, range_str)
+            for symbol, metal in YAHOO_SYMBOLS.items()
+        ])
+    return {metal: points for metal, points in results if points}
 
 
 def store_historical_prices(historical: dict):
@@ -73,14 +79,10 @@ def store_historical_prices(historical: dict):
 
 
 async def fetch_prices() -> dict:
-    prices = {}
+    symbols = list(YAHOO_SYMBOLS.keys())
     async with aiohttp.ClientSession() as session:
-        tasks = {symbol: _fetch_symbol(session, symbol) for symbol in YAHOO_SYMBOLS}
-        for symbol, coro in tasks.items():
-            price = await coro
-            if price is not None:
-                prices[YAHOO_SYMBOLS[symbol]] = price
-    return prices
+        results = await asyncio.gather(*[_fetch_symbol(session, s) for s in symbols])
+    return {YAHOO_SYMBOLS[s]: p for s, p in zip(symbols, results) if p is not None}
 
 
 def store_prices(prices: dict):

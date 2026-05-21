@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { Plus, RefreshCw, Trash2, Edit2, TrendingUp, TrendingDown, Coins, Sun, Moon } from 'lucide-react';
-import { getHoldings, getSummary, createHolding, updateHolding, deleteHolding, refreshPrices, getExchangeRates, getTemplates, createTemplate, deleteTemplate } from './api';
+import { Plus, RefreshCw, Trash2, Edit2, TrendingUp, TrendingDown, Sun, Moon, Paperclip } from 'lucide-react';
+import { getHoldings, getSummary, createHolding, updateHolding, deleteHolding, refreshPrices, getExchangeRates, getTemplates, createTemplate, deleteTemplate, uploadHoldingReceipt } from './api';
 import HoldingModal from './components/HoldingModal';
 import PriceChart from './components/PriceChart';
 import PortfolioChart from './components/PortfolioChart';
+import ReceiptViewer from './components/ReceiptViewer';
 import { useT, useLang, setLang, LANGS } from './i18n';
 
 const METAL_COLORS = { gold: '#f5c842', silver: '#c0c0c0', platinum: '#9eafc2', palladium: '#b69d74' };
@@ -47,6 +48,7 @@ export default function App() {
   const [toast, setToast]           = useState(null);
   const [portfolioKey, setPortfolioKey] = useState(0);
   const [sortConfig, setSortConfig] = useState({ key: null, dir: 'asc' });
+  const [viewerState, setViewerState] = useState(null); // { receipts, index }
   const toastTimer = useRef(null);
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
@@ -98,13 +100,18 @@ export default function App() {
   }, [holdings, sortConfig]);
 
   const load = useCallback(async () => {
-    const [h, s, tmpl] = await Promise.all([getHoldings(), getSummary(), getTemplates()]);
-    setHoldings(h);
-    setSummary(s);
-    setCustomTemplates(tmpl);
-    setPortfolioKey(k => k + 1);
-    setLoading(false);
-  }, []);
+    try {
+      const [h, s, tmpl] = await Promise.all([getHoldings(), getSummary(), getTemplates()]);
+      setHoldings(h);
+      setSummary(s);
+      setCustomTemplates(tmpl);
+      setPortfolioKey(k => k + 1);
+    } catch {
+      showToast(t('errSave'), 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -115,19 +122,24 @@ export default function App() {
     setRefreshing(false);
   };
 
-  const handleSave = async (data, quantity = 1) => {
+  const handleSave = async (data, quantity = 1, files = []) => {
     try {
       if (modal?.id) {
         await updateHolding(modal.id, data);
+        for (const f of files) await uploadHoldingReceipt(modal.id, f);
         showToast(t('updatedToast', { name: data.name }));
       } else {
-        await Promise.all(Array.from({ length: quantity }, () => createHolding(data)));
+        const results = await Promise.all(Array.from({ length: quantity }, () => createHolding(data)));
+        // Attach receipt files to all created holdings
+        for (const result of results) {
+          for (const f of files) await uploadHoldingReceipt(result.id, f);
+        }
         showToast(t('addedToast', { n: quantity, name: data.name }));
       }
       setModal(null);
       load();
     } catch {
-      showToast('Error saving holding', 'error');
+      showToast(t('errSave'), 'error');
     }
   };
 
@@ -154,9 +166,19 @@ export default function App() {
 
   const gainLoss = summary?.gain_loss_usd;
   const isGain = gainLoss > 0;
+  const plPct = summary?.total_purchase_usd > 0 && gainLoss != null
+    ? ((gainLoss / summary.total_purchase_usd) * 100).toFixed(2)
+    : null;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      {viewerState && (
+        <ReceiptViewer
+          receipts={viewerState.receipts}
+          startIndex={viewerState.index}
+          onClose={() => setViewerState(null)}
+        />
+      )}
 
       {/* ── Header ── */}
       <header className="app-header">
@@ -197,19 +219,59 @@ export default function App() {
         ) : (
           <>
             {/* ── Summary Cards ── */}
-            <div className="summary-grid">
-              <SummaryCard label={t('portfolioValue')}  value={fmt(summary?.total_value_usd)}  accent="var(--gold)" icon={<Coins size={18} />} />
-              <SummaryCard label={t('totalInvested')}   value={fmt(summary?.total_purchase_usd)} accent="var(--text-dim)" />
-              <SummaryCard
-                label={t('gainLoss')}
-                value={gainLoss != null ? `${isGain ? '+' : ''}${fmt(gainLoss)}` : '—'}
-                accent={gainLoss == null ? 'var(--text-dim)' : isGain ? 'var(--green)' : 'var(--red)'}
-                icon={gainLoss != null ? (isGain ? <TrendingUp size={18} /> : <TrendingDown size={18} />) : null}
-              />
-              {summary && Object.entries(summary.prices || {}).map(([metal, price]) => (
-                <SummaryCard key={metal} label={`${metalName(metal)} ${t('perOz')}`} value={fmt(price)} accent={METAL_COLORS[metal]} />
-              ))}
+            <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.875rem', marginBottom: '0.875rem' }}>
+              {/* Portfolio Value */}
+              <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
+                <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>{t('portfolioValue')}</div>
+                <div style={{ fontSize: '1.55rem', fontWeight: 700, color: 'var(--gold)', lineHeight: 1.1, marginBottom: '0.4rem', wordBreak: 'break-all' }}>
+                  {fmt(summary?.total_value_usd)}
+                </div>
+                {plPct && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: isGain ? 'var(--green)' : 'var(--red)' }}>
+                    {isGain ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                    {isGain ? '+' : ''}{plPct}%
+                    <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>{t('allTime')}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Total Invested */}
+              <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
+                <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>{t('totalInvested')}</div>
+                <div style={{ fontSize: '1.55rem', fontWeight: 700, color: 'var(--text)', lineHeight: 1.1, wordBreak: 'break-all' }}>
+                  {fmt(summary?.total_purchase_usd) || '—'}
+                </div>
+              </div>
+
+              {/* Gain / Loss */}
+              <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
+                <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>{t('gainLoss')}</div>
+                <div style={{ fontSize: '1.55rem', fontWeight: 700, lineHeight: 1.1, wordBreak: 'break-all', color: gainLoss == null ? 'var(--text-dim)' : isGain ? 'var(--green)' : 'var(--red)' }}>
+                  {gainLoss != null ? `${isGain ? '+' : ''}${fmt(gainLoss)}` : '—'}
+                </div>
+                {plPct && (
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: isGain ? 'var(--green)' : 'var(--red)', marginTop: '0.4rem', opacity: 0.8 }}>
+                    {isGain ? '+' : ''}{plPct}%
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* ── Spot Prices ── */}
+            {summary && Object.keys(summary.prices || {}).length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                {Object.entries(summary.prices).map(([metal, price]) => (
+                  <div key={metal} className="card" style={{ padding: '0.875rem 1.125rem' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '5px', fontWeight: 500 }}>
+                      {METAL_ICONS[metal]} {metalName(metal)} {t('perOz')}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: '1rem', color: METAL_COLORS[metal] }}>
+                      {fmt(price)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* ── Portfolio Value History ── */}
             <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
@@ -323,7 +385,15 @@ export default function App() {
                                 {pl != null ? `${isPos ? '+' : ''}${fmt(pl)}` : '—'}
                               </td>
                               <td style={{ padding: '13px 16px' }}>
-                                <div style={{ display: 'flex', gap: '4px' }}>
+                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                  {h.receipts?.length > 0 && (
+                                    <button onClick={() => setViewerState({ receipts: h.receipts, index: 0 })}
+                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', background: 'none', border: 'none', color: 'var(--gold)', padding: '6px', minWidth: 32, minHeight: 32, opacity: 0.85, cursor: 'pointer' }}
+                                      title={t('viewReceipt')}>
+                                      <Paperclip size={13} />
+                                      {h.receipts.length > 1 && <span style={{ fontSize: '10px', fontWeight: 700 }}>{h.receipts.length}</span>}
+                                    </button>
+                                  )}
                                   <button onClick={() => setModal(h)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '6px', minWidth: 32, minHeight: 32 }}><Edit2 size={14} /></button>
                                   <button onClick={() => handleDelete(h.id, h.name)} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', padding: '6px', opacity: 0.7, minWidth: 32, minHeight: 32 }}><Trash2 size={14} /></button>
                                 </div>
@@ -348,13 +418,20 @@ export default function App() {
                               {h.carat && <span style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '1px 6px', fontSize: '11px', color: 'var(--gold)' }}>{h.carat}</span>}
                             </div>
                             <div className="holding-card-actions">
+                              {h.receipts?.length > 0 && (
+                                <button onClick={() => setViewerState({ receipts: h.receipts, index: 0 })}
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', background: 'none', border: 'none', color: 'var(--gold)', padding: '6px', minWidth: 36, minHeight: 36, opacity: 0.85, cursor: 'pointer' }}>
+                                  <Paperclip size={15} />
+                                  {h.receipts.length > 1 && <span style={{ fontSize: '11px', fontWeight: 700 }}>{h.receipts.length}</span>}
+                                </button>
+                              )}
                               <button onClick={() => setModal(h)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '6px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Edit2 size={15} /></button>
                               <button onClick={() => handleDelete(h.id, h.name)} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', padding: '6px', opacity: 0.7, minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={15} /></button>
                             </div>
                           </div>
                           <div style={{ fontWeight: 600, fontSize: '1rem' }}>{h.name}</div>
                           <div className="holding-card-row" style={{ marginTop: '2px' }}>
-                            <span style={{ color: 'var(--text-dim)', fontSize: '13px' }}>{fmtG(h.weight_grams)} · {fmt(h.price_per_oz)}/oz</span>
+                            <span style={{ color: 'var(--text-dim)', fontSize: '13px' }}>{fmtG(h.weight_grams)} · {fmt(h.price_per_oz)}{t('perOz')}</span>
                             <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--gold)' }}>{fmt(h.current_value_usd)}</span>
                           </div>
                           {h.purchase_date && (
@@ -428,14 +505,3 @@ function ConfirmModal({ name, onCancel, onConfirm, t }) {
   );
 }
 
-function SummaryCard({ label, value, accent, icon }) {
-  return (
-    <div className="card" style={{ padding: '1rem 1.25rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-        <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1.3 }}>{label}</span>
-        {icon && <span style={{ color: accent, opacity: 0.8, flexShrink: 0 }}>{icon}</span>}
-      </div>
-      <div style={{ fontSize: '1.2rem', fontWeight: 700, color: accent, wordBreak: 'break-all' }}>{value}</div>
-    </div>
-  );
-}

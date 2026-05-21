@@ -2,6 +2,9 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Prevent horizontal scroll at the app root — does not affect position:fixed or viewport scroll */
+#root { overflow-x: hidden; max-width: 100%; }
+
 /* ── Dark theme (default) ─────────────────────────────── */
 :root {
   --bg: #0a0a0f;
@@ -289,6 +292,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   .app-header { padding: 0.75rem 1rem; padding-top: calc(0.75rem + var(--safe-top)); }
   .app-main { padding: 1rem; padding-bottom: calc(1rem + var(--safe-bottom)); }
   .summary-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.25rem; }
+  .stat-grid { grid-template-columns: 1fr !important; }
 
   .holdings-table-wrap { display: none; }
   .holdings-cards { display: block; }
@@ -311,8 +315,31 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 }
 
 /* ════════════════════════════════════════════════════════
+   PHONE  ≤ 480px  (iPhone 15 = 393px CSS)
+   ════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .app-header {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0.625rem 0.875rem;
+    padding-top: calc(0.625rem + var(--safe-top));
+  }
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .currency-select {
+    max-width: 64px;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════
    EXTRA SMALL  ≤ 380px
    ════════════════════════════════════════════════════════ */
 @media (max-width: 380px) {
   .summary-grid { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: 1fr !important; }
 }

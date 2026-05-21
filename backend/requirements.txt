@@ -4,3 +4,4 @@ sqlalchemy==2.0.30
 aiohttp==3.9.5
 apscheduler==3.10.4
 pydantic==2.7.3
+python-multipart==0.0.9
