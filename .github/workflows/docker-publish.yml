@@ -8,12 +8,14 @@ on:
       - '**.md'
       - '_archived/**'
       - '.gitignore'
+      - 'LICENSE'
   pull_request:
     branches: [main]
     paths-ignore:
       - '**.md'
       - '_archived/**'
       - '.gitignore'
+      - 'LICENSE'
 
 env:
   REGISTRY: ghcr.io
