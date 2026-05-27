@@ -2,7 +2,7 @@
 
 A self-hosted web app for tracking physical precious metals — gold, silver, platinum, and palladium. Runs as a Docker container on a NAS or any Linux host.
 
-![Version](https://img.shields.io/badge/version-1.4.0-blue?logo=github)
+![Version](https://img.shields.io/badge/version-1.4.1-blue?logo=github)
 ![Dark mode](https://img.shields.io/badge/theme-dark%20%2F%20light-222)
 ![Languages](https://img.shields.io/badge/languages-EN%20%2F%20TR%20%2F%20DE-blue)
 ![Currencies](https://img.shields.io/badge/currencies-11-green)
