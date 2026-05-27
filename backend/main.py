@@ -36,21 +36,21 @@ def _invalidate_history_cache() -> None:
 
 
 class HoldingBase(BaseModel):
-    @field_validator('carat')
+    @field_validator('carat', check_fields=False)
     @classmethod
     def validate_carat(cls, v):
         if v is not None and v not in VALID_CARATS:
             raise ValueError(f'carat must be one of {_SORTED_CARATS}')
         return v
 
-    @field_validator('purchase_currency')
+    @field_validator('purchase_currency', check_fields=False)
     @classmethod
     def validate_purchase_currency(cls, v):
         if v is not None and v not in VALID_CURRENCIES:
             raise ValueError(f'purchase_currency must be one of {_SORTED_CURRENCIES}')
         return v
 
-    @field_validator('purchase_date')
+    @field_validator('purchase_date', check_fields=False)
     @classmethod
     def validate_date(cls, v):
         if v and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', v):
