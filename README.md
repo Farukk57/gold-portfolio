@@ -2,7 +2,7 @@
 
 A self-hosted web app for tracking physical precious metals — gold, silver, platinum, and palladium. Runs as a Docker container on a NAS or any Linux host.
 
-![Version](https://img.shields.io/badge/version-1.3.0-blue?logo=github)
+![Version](https://img.shields.io/badge/version-1.4.0-blue?logo=github)
 ![Dark mode](https://img.shields.io/badge/theme-dark%20%2F%20light-222)
 ![Languages](https://img.shields.io/badge/languages-EN%20%2F%20TR%20%2F%20DE-blue)
 ![Currencies](https://img.shields.io/badge/currencies-11-green)
@@ -17,6 +17,8 @@ A self-hosted web app for tracking physical precious metals — gold, silver, pl
 - **Multi-currency** — USD, EUR, GBP, CHF, JPY, TRY, CAD, AED, AUD, CNY, SEK (rates via Frankfurter)
 - **Multi-language** — English, Turkish, German
 - **Light / dark mode**
+- **Stable purchase prices** — the amount you enter is stored in your chosen currency and displayed exactly as entered, with no drift from exchange-rate changes
+- **Persistent settings** — theme, currency, and language are saved in cookies (1-year expiry) and survive page reloads and browser data clears
 - **Holdings table** — sortable by any column (value, P&L, weight, date, etc.)
 - **Receipt storage** — attach purchase receipts (images / PDF, max 10 MB) to each holding
 - **Add templates** — Turkish coins (Cumhuriyet, Reşat, Ata, Yarım, Çeyrek), German coins (Krügerrand, Wiener Philharmoniker, Maple Leaf), international bullion, silver and platinum
@@ -99,6 +101,7 @@ On first start the backend backfills 2 years of daily price history for all four
 │   │   ├── App.jsx              # Main app, holdings table with sorting
 │   │   ├── api.js               # Fetch helpers
 │   │   ├── i18n.js              # EN / TR / DE translations
+│   │   ├── cookies.js           # Cookie read/write helpers (settings persistence)
 │   │   ├── templates.js         # Built-in coin/bar templates
 │   │   ├── index.css            # CSS custom properties, responsive breakpoints
 │   │   └── components/
@@ -136,40 +139,6 @@ On first start the backend backfills 2 years of daily price history for all four
 | POST | `/api/templates` | Save a custom template |
 | DELETE | `/api/templates/{id}` | Delete a custom template |
 | GET | `/api/exchange-rates` | Current USD exchange rates (via Frankfurter) |
-| GET | `/api/homepage?currency=EUR` | Homepage widget data — value, P&L, gold/oz, holdings count (pre-formatted, currency-converted) |
-
-## Homepage widget
-
-Add a [gethomepage.dev](https://gethomepage.dev) widget that shows portfolio value, P&L, gold spot price, and holdings count.
-
-```yaml
-- Portfolio:
-    - Gold Portfolio:
-        icon: mdi-gold
-        href: http://192.168.178.118:3000/
-        description: Precious metals tracker
-        widget:
-          type: customapi
-          url: http://192.168.178.118:3000/api/homepage?currency=EUR
-          refreshInterval: 300000
-          mappings:
-            - field: value
-              label: Portfolio Value
-              format: text
-            - field: gain_loss
-              label: P&L
-              format: text
-            - field: gold_oz
-              label: Gold / oz
-              format: text
-            - field: holdings
-              label: Holdings
-              format: number
-```
-
-Change `?currency=EUR` to any supported currency (`USD`, `EUR`, `GBP`, `TRY`, `CHF`, `JPY`, `CAD`, `AED`, `AUD`, `CNY`, `SEK`). The backend converts values and formats them with the correct symbol (e.g. `€19,234.56`, `-€1,378.71`).
-
-Full setup instructions: [`homepage-widget/README.md`](./homepage-widget/README.md)
 
 ## Notes
 
