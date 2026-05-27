@@ -120,11 +120,17 @@ def get_price_history(db: Session, metal: str, limit: int = 168) -> list:
         .order_by(PriceHistory.timestamp.asc())
         .all()
     )
-    # Downsample to at most `limit` points
+    # Collapse hourly live data to one point per day (last intraday record wins)
+    daily: dict[str, PriceHistory] = {}
+    for r in rows:
+        daily[r.timestamp.strftime("%Y-%m-%d")] = r
+    rows = list(daily.values())
+
+    # Downsample if still above limit
     if len(rows) > limit:
         step = len(rows) // limit
         rows = rows[::step]
-    return [{"timestamp": r.timestamp.isoformat(), "price": r.price_usd_per_oz} for r in rows]
+    return [{"timestamp": r.timestamp.strftime("%Y-%m-%d"), "price": r.price_usd_per_oz} for r in rows]
 
 
 def calculate_value(weight_grams: float, metal: str, carat: str | None, price_usd_per_oz: float) -> float:
