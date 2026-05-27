@@ -6,13 +6,13 @@ on:
     tags: ['v*']
     paths-ignore:
       - '**.md'
-      - 'homepage-widget/**'
+      - '_archived/**'
       - '.gitignore'
   pull_request:
     branches: [main]
     paths-ignore:
       - '**.md'
-      - 'homepage-widget/**'
+      - '_archived/**'
       - '.gitignore'
 
 env:

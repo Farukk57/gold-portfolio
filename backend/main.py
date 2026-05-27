@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, field_validator, Field
+from pydantic import BaseModel, field_validator, model_validator, Field
 from typing import Literal, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
@@ -17,6 +17,8 @@ ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.pdf'}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 VALID_CARATS = {'24k', '22k', '21k', '18k', '14k', '9k'}
 VALID_CURRENCIES = {'USD', 'EUR', 'GBP', 'CHF', 'JPY', 'TRY', 'CAD', 'AED', 'AUD', 'CNY', 'SEK'}
+_SORTED_CARATS = sorted(VALID_CARATS)
+_SORTED_CURRENCIES = sorted(VALID_CURRENCIES)
 
 from database import get_db, init_db, Holding, Receipt, PriceHistory, Template, SessionLocal
 from prices import fetch_prices, store_prices, get_latest_prices, get_price_history, calculate_value, fetch_historical_prices, store_historical_prices
@@ -25,8 +27,6 @@ RECEIPTS_DIR = "/app/data/receipts"
 
 scheduler = AsyncIOScheduler()
 
-# Simple in-memory caches
-_rate_cache: dict = {}        # currency -> (rate, timestamp)
 _history_cache: dict = {"data": None, "ts": 0.0}
 _CACHE_TTL = 300.0            # 5 minutes
 
@@ -35,52 +35,59 @@ def _invalidate_history_cache() -> None:
     _history_cache["ts"] = 0.0
 
 
-class HoldingCreate(BaseModel):
+class HoldingBase(BaseModel):
+    @field_validator('carat')
+    @classmethod
+    def validate_carat(cls, v):
+        if v is not None and v not in VALID_CARATS:
+            raise ValueError(f'carat must be one of {_SORTED_CARATS}')
+        return v
+
+    @field_validator('purchase_currency')
+    @classmethod
+    def validate_purchase_currency(cls, v):
+        if v is not None and v not in VALID_CURRENCIES:
+            raise ValueError(f'purchase_currency must be one of {_SORTED_CURRENCIES}')
+        return v
+
+    @field_validator('purchase_date')
+    @classmethod
+    def validate_date(cls, v):
+        if v and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', v):
+            raise ValueError('purchase_date must be YYYY-MM-DD')
+        return v
+
+    @model_validator(mode='after')
+    def validate_purchase_price_pair(self):
+        has_local = getattr(self, 'purchase_price_local', None) is not None
+        has_currency = getattr(self, 'purchase_currency', None) is not None
+        if has_local != has_currency:
+            raise ValueError('purchase_price_local and purchase_currency must both be provided or both be absent')
+        return self
+
+
+class HoldingCreate(HoldingBase):
     name: str = Field(min_length=1, max_length=200)
     metal: Literal['gold', 'silver', 'platinum', 'palladium']
     carat: Optional[str] = None
     weight_grams: float = Field(gt=0)
     purchase_price: Optional[float] = Field(default=None, ge=0)
+    purchase_price_local: Optional[float] = Field(default=None, ge=0)
+    purchase_currency: Optional[str] = None
     purchase_date: Optional[str] = None
     notes: Optional[str] = Field(default=None, max_length=1000)
 
-    @field_validator('carat')
-    @classmethod
-    def validate_carat(cls, v):
-        if v is not None and v not in VALID_CARATS:
-            raise ValueError(f'carat must be one of {sorted(VALID_CARATS)}')
-        return v
 
-    @field_validator('purchase_date')
-    @classmethod
-    def validate_date(cls, v):
-        if v and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', v):
-            raise ValueError('purchase_date must be YYYY-MM-DD')
-        return v
-
-
-class HoldingUpdate(BaseModel):
+class HoldingUpdate(HoldingBase):
     name: Optional[str] = Field(default=None, max_length=200)
     metal: Optional[Literal['gold', 'silver', 'platinum', 'palladium']] = None
     carat: Optional[str] = None
     weight_grams: Optional[float] = Field(default=None, gt=0)
     purchase_price: Optional[float] = Field(default=None, ge=0)
+    purchase_price_local: Optional[float] = Field(default=None, ge=0)
+    purchase_currency: Optional[str] = None
     purchase_date: Optional[str] = None
     notes: Optional[str] = Field(default=None, max_length=1000)
-
-    @field_validator('carat')
-    @classmethod
-    def validate_carat(cls, v):
-        if v is not None and v not in VALID_CARATS:
-            raise ValueError(f'carat must be one of {sorted(VALID_CARATS)}')
-        return v
-
-    @field_validator('purchase_date')
-    @classmethod
-    def validate_date(cls, v):
-        if v and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', v):
-            raise ValueError('purchase_date must be YYYY-MM-DD')
-        return v
 
 
 async def refresh_prices():
@@ -177,6 +184,8 @@ def list_holdings(db: Session = Depends(get_db)):
             "carat": h.carat,
             "weight_grams": h.weight_grams,
             "purchase_price": h.purchase_price,
+            "purchase_price_local": h.purchase_price_local,
+            "purchase_currency": h.purchase_currency,
             "purchase_date": h.purchase_date,
             "notes": h.notes,
             "created_at": h.created_at,
@@ -368,75 +377,6 @@ def portfolio_history(db: Session = Depends(get_db)):
     _history_cache["data"] = result
     _history_cache["ts"] = time.monotonic()
     return result
-
-
-_CURRENCY_SYMBOLS = {
-    "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "TRY": "₺",
-    "CHF": "Fr.", "CAD": "C$", "AED": "AED ", "AUD": "A$", "CNY": "¥", "SEK": "kr ",
-}
-
-
-async def _get_rate(currency: str) -> float:
-    if currency == "USD":
-        return 1.0
-    now = time.monotonic()
-    cached = _rate_cache.get(currency)
-    if cached and now - cached[1] < _CACHE_TTL:
-        return cached[0]
-    url = f"https://api.frankfurter.dev/v1/latest?base=USD&symbols={currency}"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    rate = float(data.get("rates", {}).get(currency, 1.0))
-                    _rate_cache[currency] = (rate, now)
-                    return rate
-    except Exception:
-        pass
-    return cached[0] if cached else 1.0
-
-
-def _fmt_currency(value: float, symbol: str, decimals: int = 2) -> str:
-    abs_val = abs(value)
-    formatted = f"{abs_val:,.{decimals}f}"
-    if value < 0:
-        return f"-{symbol}{formatted}"
-    return f"{symbol}{formatted}"
-
-
-@app.get("/api/homepage")
-async def homepage_widget(currency: str = "USD", db: Session = Depends(get_db)):
-    currency = currency.upper()
-    if currency not in VALID_CURRENCIES:
-        raise HTTPException(status_code=400, detail=f"Unsupported currency. Valid: {sorted(VALID_CURRENCIES)}")
-    holdings = db.query(Holding).all()
-    prices = get_latest_prices(db)
-
-    total_value = 0.0
-    total_purchase = 0.0
-    for h in holdings:
-        price_data = prices.get(h.metal)
-        if price_data:
-            total_value += calculate_value(h.weight_grams, h.metal, h.carat, price_data["price_usd_per_oz"])
-        if h.purchase_price:
-            total_purchase += h.purchase_price
-
-    gain_loss = total_value - total_purchase if total_purchase else 0.0
-    gain_loss_pct = round(gain_loss / total_purchase * 100, 2) if total_purchase else 0.0
-    gold_price = prices.get("gold", {}).get("price_usd_per_oz", 0.0)
-
-    rate = await _get_rate(currency)
-    symbol = _CURRENCY_SYMBOLS.get(currency, currency + " ")
-    decimals = 0 if curr == "JPY" else 2
-
-    return {
-        "value": _fmt_currency(total_value * rate, symbol, decimals),
-        "gain_loss": ("+" if gain_loss >= 0 else "") + _fmt_currency(gain_loss * rate, symbol, decimals),
-        "gain_loss_pct": f"{gain_loss_pct:+.2f}%",
-        "gold_oz": _fmt_currency(gold_price * rate, symbol, decimals),
-        "holdings": len(holdings),
-    }
 
 
 @app.get("/api/portfolio/summary")

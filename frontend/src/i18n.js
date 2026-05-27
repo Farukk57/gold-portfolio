@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { getCookie, setCookie } from './cookies';
 
 const T = {
   en: {
@@ -117,11 +118,11 @@ const T = {
 export const LANGS = { en: '🇬🇧 EN', tr: '🇹🇷 TR', de: '🇩🇪 DE' };
 
 let _listeners = new Set();
-let _lang = (() => { try { return localStorage.getItem('lang') || 'en'; } catch { return 'en'; } })();
+let _lang = (() => { try { return getCookie('lang') || 'en'; } catch { return 'en'; } })();
 
 export function setLang(l) {
   _lang = l;
-  try { localStorage.setItem('lang', l); } catch {}
+  try { setCookie('lang', l); } catch {}
   _listeners.forEach(fn => fn(l));
 }
 

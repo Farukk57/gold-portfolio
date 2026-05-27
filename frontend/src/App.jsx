@@ -6,6 +6,7 @@ import PriceChart from './components/PriceChart';
 import PortfolioChart from './components/PortfolioChart';
 import ReceiptViewer from './components/ReceiptViewer';
 import { useT, useLang, setLang, LANGS } from './i18n';
+import { getCookie, setCookie } from './cookies';
 
 const METAL_COLORS = { gold: '#f5c842', silver: '#c0c0c0', platinum: '#9eafc2', palladium: '#b69d74' };
 const METAL_ICONS  = { gold: '🥇', silver: '🥈', platinum: '💎', palladium: '⚪' };
@@ -20,8 +21,8 @@ const CURRENCY_META = {
 };
 
 function useSaved(key, def) {
-  const [val, set] = useState(() => { try { const s = localStorage.getItem(key); return s != null ? JSON.parse(s) : def; } catch { return def; } });
-  const save = useCallback(v => { set(v); try { localStorage.setItem(key, JSON.stringify(v)); } catch {} }, [key]);
+  const [val, set] = useState(() => { try { const s = getCookie(key); return s != null ? JSON.parse(s) : def; } catch { return def; } });
+  const save = useCallback(v => { set(v); try { setCookie(key, JSON.stringify(v)); } catch {} }, [key]);
   return [val, save];
 }
 
@@ -67,6 +68,14 @@ export default function App() {
     const d = dec ?? currency.decimals;
     return `${currency.symbol}${(Number(n) * currency.rate).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d })}`;
   }, [currency]);
+
+  const fmtPaid = useCallback((h) => {
+    if (h.purchase_price_local != null && h.purchase_currency) {
+      const meta = CURRENCY_META[h.purchase_currency] || { symbol: h.purchase_currency + ' ', decimals: 2 };
+      return `${meta.symbol}${h.purchase_price_local.toLocaleString(undefined, { minimumFractionDigits: meta.decimals, maximumFractionDigits: meta.decimals })}`;
+    }
+    return fmt(h.purchase_price);
+  }, [fmt]);
 
   const fmtG = n => `${Number(n).toFixed(2)}g`;
   const metalName = m => t(m);
@@ -360,7 +369,7 @@ export default function App() {
                             { label: t('purchased'),                           key: 'purchase_date' },
                             { label: `${t('spotOz')} (${currCode})`,          key: 'price_per_oz' },
                             { label: `${t('value')} (${currCode})`,           key: 'current_value_usd' },
-                            { label: `${t('paid')} (${currCode})`,            key: 'purchase_price' },
+                            { label: t('paid'),                                key: 'purchase_price' },
                             { label: t('pl'),                                  key: 'pl' },
                             { label: '',                                       key: null },
                           ].map(({ label, key }, i) => (
@@ -393,7 +402,7 @@ export default function App() {
                               <td style={{ padding: '13px 16px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{fmtDate(h.purchase_date)}</td>
                               <td style={{ padding: '13px 16px', color: 'var(--text-dim)' }}>{fmt(h.price_per_oz)}</td>
                               <td style={{ padding: '13px 16px', fontWeight: 600 }}>{fmt(h.current_value_usd)}</td>
-                              <td style={{ padding: '13px 16px', color: 'var(--text-dim)' }}>{fmt(h.purchase_price)}</td>
+                              <td style={{ padding: '13px 16px', color: 'var(--text-dim)' }}>{fmtPaid(h)}</td>
                               <td style={{ padding: '13px 16px', fontWeight: 600, color: pl == null ? 'var(--text-dim)' : isPos ? 'var(--green)' : 'var(--red)' }}>
                                 {pl != null ? `${isPos ? '+' : ''}${fmt(pl)}` : '—'}
                               </td>
@@ -454,7 +463,7 @@ export default function App() {
                           )}
                           {pl != null && (
                             <div style={{ fontSize: '13px', color: isPos ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>
-                              {isPos ? '▲ +' : '▼ '}{fmt(pl)} {t('paid').toLowerCase()} {fmt(h.purchase_price)}
+                              {isPos ? '▲ +' : '▼ '}{fmt(pl)} {t('paid').toLowerCase()} {fmtPaid(h)}
                             </div>
                           )}
                         </div>

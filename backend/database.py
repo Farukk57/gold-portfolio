@@ -27,7 +27,9 @@ class Holding(Base):
     metal = Column(String, nullable=False)
     carat = Column(String, nullable=True)
     weight_grams = Column(Float, nullable=False)
-    purchase_price = Column(Float, nullable=True)
+    purchase_price = Column(Float, nullable=True)        # always USD, used for P&L
+    purchase_price_local = Column(Float, nullable=True)  # original entered amount
+    purchase_currency = Column(String(3), nullable=True) # currency of purchase_price_local
     purchase_date = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     receipt_filename = Column(String, nullable=True)  # legacy single-receipt field
@@ -79,6 +81,27 @@ def init_db():
         # Add legacy column if missing
         try:
             conn.execute(text("ALTER TABLE holdings ADD COLUMN receipt_filename VARCHAR"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE holdings ADD COLUMN purchase_price_local REAL"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE holdings ADD COLUMN purchase_currency VARCHAR(3)"))
+            conn.commit()
+        except Exception:
+            pass
+        # Clear any USD backfill so legacy rows fall back to display-currency conversion.
+        # Legacy purchase_price is stored in USD; new entries with a real purchase_currency
+        # will have a non-USD (or intentionally USD) value written by the frontend.
+        try:
+            conn.execute(text(
+                "UPDATE holdings SET purchase_price_local = NULL, purchase_currency = NULL "
+                "WHERE purchase_currency = 'USD'"
+            ))
             conn.commit()
         except Exception:
             pass

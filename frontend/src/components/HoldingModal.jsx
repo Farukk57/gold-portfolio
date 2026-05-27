@@ -175,11 +175,20 @@ export default function HoldingModal({ holding, onClose, onSave, currency, custo
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    // If editing and the user never touched the price field, keep the original
-    // stored USD value to avoid drift from exchange-rate round-tripping.
-    const purchasePriceUsd = form.purchase_price !== ''
-      ? (holding && !purchasePriceTouched ? holding.purchase_price : parseFloat(form.purchase_price) / rate)
-      : null;
+    let purchasePriceUsd = null;
+    let purchasePriceLocal = null;
+    let purchasePriceCurrency = null;
+    if (form.purchase_price !== '') {
+      if (holding && !purchasePriceTouched) {
+        purchasePriceUsd = holding.purchase_price;
+        purchasePriceLocal = holding.purchase_price_local;
+        purchasePriceCurrency = holding.purchase_currency;
+      } else {
+        purchasePriceLocal = parseFloat(form.purchase_price);
+        purchasePriceCurrency = code;
+        purchasePriceUsd = parseFloat(form.purchase_price) / rate;
+      }
+    }
 
     onSave({
       name: form.name.trim(),
@@ -187,6 +196,8 @@ export default function HoldingModal({ holding, onClose, onSave, currency, custo
       carat: form.metal === 'gold' ? form.carat : null,
       weight_grams: parseFloat(form.weight_grams),
       purchase_price: purchasePriceUsd,
+      purchase_price_local: purchasePriceLocal,
+      purchase_currency: purchasePriceCurrency,
       purchase_date: form.purchase_date || null,
       notes: form.notes.trim() || null,
     }, parseInt(form.quantity, 10), pendingFiles);

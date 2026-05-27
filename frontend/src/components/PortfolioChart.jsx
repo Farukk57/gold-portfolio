@@ -74,8 +74,8 @@ export default function PortfolioChart({ currency, t = k => k }) {
   const pl    = last.value - last.cost_basis;
   const plPct = last.cost_basis > 0 ? ((pl / last.cost_basis) * 100).toFixed(2) : null;
   const isPos = pl >= 0;
-  const rangeChange = filtered.length > 1 ? ((filtered[filtered.length-1].value - filteredFirst.value) / (filteredFirst.value || 1) * 100).toFixed(2) : null;
-  const rangeUp = parseFloat(rangeChange) >= 0;
+  const rangeChange = range !== 'ALL' && filtered.length > 1 ? ((filtered[filtered.length-1].value - filteredFirst.value) / (filteredFirst.value || 1) * 100).toFixed(2) : null;
+  const rangeUp = rangeChange !== null && parseFloat(rangeChange) >= 0;
   const f = (n) => `${symbol}${(n * rate).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 
   return (
