@@ -122,10 +122,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lowercase image ref
+        id: ref
+        run: echo "image=${{ env.REGISTRY }}/$(echo '${{ env.OWNER }}' | tr '[:upper:]' '[:lower:]')/gold-portfolio-backend:main" >> $GITHUB_OUTPUT
+
       - name: Run Trivy on backend image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.OWNER }}/gold-portfolio-backend:main
+          image-ref: ${{ steps.ref.outputs.image }}
           format: table
           exit-code: '0'
           ignore-unfixed: true
@@ -147,10 +151,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lowercase image ref
+        id: ref
+        run: echo "image=${{ env.REGISTRY }}/$(echo '${{ env.OWNER }}' | tr '[:upper:]' '[:lower:]')/gold-portfolio-frontend:main" >> $GITHUB_OUTPUT
+
       - name: Run Trivy on frontend image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.OWNER }}/gold-portfolio-frontend:main
+          image-ref: ${{ steps.ref.outputs.image }}
           format: table
           exit-code: '0'
           ignore-unfixed: true
