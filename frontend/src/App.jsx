@@ -186,10 +186,28 @@ export default function App() {
     }
   };
 
-  const gainLoss = summary?.gain_loss_usd;
-  const isGain = gainLoss > 0;
-  const plPct = summary?.total_purchase_usd > 0 && gainLoss != null
-    ? ((gainLoss / summary.total_purchase_usd) * 100).toFixed(2)
+  // Sum purchase prices using local currency where available to avoid exchange-rate drift
+  const totalInvested = useMemo(() => {
+    if (!holdings.length) return null;
+    let total = 0;
+    let hasAny = false;
+    for (const h of holdings) {
+      if (h.purchase_price == null) continue;
+      hasAny = true;
+      if (h.purchase_price_local != null && h.purchase_currency === currCode) {
+        total += h.purchase_price_local;
+      } else {
+        total += h.purchase_price * currency.rate;
+      }
+    }
+    return hasAny ? total : null;
+  }, [holdings, currCode, currency.rate]);
+
+  const totalValueDisplay = summary ? summary.total_value_usd * currency.rate : null;
+  const gainLossDisplay = totalValueDisplay != null && totalInvested != null ? totalValueDisplay - totalInvested : null;
+  const isGain = gainLossDisplay > 0;
+  const plPct = totalInvested > 0 && gainLossDisplay != null
+    ? ((gainLossDisplay / totalInvested) * 100).toFixed(2)
     : null;
 
   return (
@@ -261,15 +279,15 @@ export default function App() {
               <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
                 <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>{t('totalInvested')}</div>
                 <div style={{ fontSize: '1.55rem', fontWeight: 700, color: 'var(--text)', lineHeight: 1.1, wordBreak: 'break-all' }}>
-                  {fmt(summary?.total_purchase_usd) || '—'}
+                  {totalInvested != null ? `${currency.symbol}${totalInvested.toLocaleString(undefined, { minimumFractionDigits: currency.decimals, maximumFractionDigits: currency.decimals })}` : '—'}
                 </div>
               </div>
 
               {/* Gain / Loss */}
               <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
                 <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>{t('gainLoss')}</div>
-                <div style={{ fontSize: '1.55rem', fontWeight: 700, lineHeight: 1.1, wordBreak: 'break-all', color: gainLoss == null ? 'var(--text-dim)' : isGain ? 'var(--green)' : 'var(--red)' }}>
-                  {gainLoss != null ? `${isGain ? '+' : ''}${fmt(gainLoss)}` : '—'}
+                <div style={{ fontSize: '1.55rem', fontWeight: 700, lineHeight: 1.1, wordBreak: 'break-all', color: gainLossDisplay == null ? 'var(--text-dim)' : isGain ? 'var(--green)' : 'var(--red)' }}>
+                  {gainLossDisplay != null ? `${isGain ? '+' : ''}${currency.symbol}${Math.abs(gainLossDisplay).toLocaleString(undefined, { minimumFractionDigits: currency.decimals, maximumFractionDigits: currency.decimals })}` : '—'}
                 </div>
                 {plPct && (
                   <div style={{ fontSize: '12px', fontWeight: 500, color: isGain ? 'var(--green)' : 'var(--red)', marginTop: '0.4rem', opacity: 0.8 }}>
