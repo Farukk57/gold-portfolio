@@ -106,7 +106,11 @@ export default function HoldingModal({ holding, onClose, onSave, currency, custo
         metal: holding.metal,
         carat: holding.carat || '22k',
         weight_grams: holding.weight_grams,
-        purchase_price: holding.purchase_price != null ? (holding.purchase_price * rate).toFixed(2) : '',
+        purchase_price: holding.purchase_price_local != null
+          ? holding.purchase_price_local.toFixed(2)
+          : holding.purchase_price != null
+            ? (holding.purchase_price * rate).toFixed(2)
+            : '',
         purchase_date: holding.purchase_date ?? '',
         notes: holding.notes ?? '',
         quantity: 1,
@@ -117,7 +121,7 @@ export default function HoldingModal({ holding, onClose, onSave, currency, custo
         getReceiptsForHolding(holding.id).then(setReceipts);
       }
     }
-  }, [holding, rate]);
+  }, [holding]); // rate intentionally excluded: prevents purchasePriceTouched reset on rate changes
 
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
@@ -306,7 +310,7 @@ export default function HoldingModal({ holding, onClose, onSave, currency, custo
               </div>
 
               <div>
-                <label style={lbl}>{t('purchasePrice')} ({code})</label>
+                <label style={lbl}>{t('purchasePrice')} ({(holding && holding.purchase_currency) || code})</label>
                 <input style={inp(errors.purchase_price)} type="number" step="0.01" min="0" inputMode="decimal"
                   value={form.purchase_price}
                   onChange={e => { set('purchase_price', e.target.value); setPurchasePriceTouched(true); }}
